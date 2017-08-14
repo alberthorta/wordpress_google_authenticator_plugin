@@ -1,44 +1,67 @@
 <?php
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+    Google Authentication Plugin is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 2 of the License, or
+    any later version.
+
+    Google Authentication Plugin is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Google Authentication Plugin. If not, see https://github.com/alberthorta/wordpress_google_authenticator_plugin.
+*/
 
 /**
 	Plugin Name: Google Authentication Plugin
-	Description: Activate Google Authentication for admin pages on selected users.
-	Version: 1.0
+    Plugin URI: https://github.com/alberthorta/wordpress_google_authenticator_plugin
+    Description: Activate Google Authentication for admin pages on selected users.
+	Version: 20170813
+    License:     GPL2
+    License URI: https://www.gnu.org/licenses/gpl-2.0.html
 	Author: Albert Horta Llobet, Andre DeMarre
-	Author URI: https://github.com/alberthorta/wordpress_google_authenticator_plugin
+	Author URI: https://github.com/alberthorta
 **/
 
 require_once(dirname(__FILE__)."/classes/GoogleAuthenticator.php");
 
-function my_show_extra_profile_fields($user) {
+function google_authenticator_is_auth_enabled($user) {
+    $auth_enable = get_user_meta($user->ID, 'google_auth_enable');
+    if(is_array($auth_enable) && isset($auth_enable[0]) && $auth_enable[0]==1) {
+        $auth_enable=1;
+    } else {
+        $auth_enable=0;
+    }
+    return $auth_enable;
+}
+
+function google_authenticator_get_secret($user) {
+    $g = new GoogleAuthenticator();
+    $secret = get_user_meta($user->ID, 'google_auth_secret');
+    if(is_array($secret) && isset($secret[0]) && $secret[0]!="" && google_authenticator_is_auth_enabled($user)==1) {
+        $secret = $secret[0];
+    } else {
+        $secret = $g->generateSecret();
+    }
+    return $secret;
+}
+
+function google_authenticator_plugin_deactivation()
+{
+    delete_metadata('user', -1, 'google_auth_enable', '', true);
+    delete_metadata('user', -1, 'google_auth_secret', '', true);
+}
+register_deactivation_hook( __FILE__, 'google_authenticator_plugin_deactivation' );
+
+function google_authenticator_plugin_show_extra_profile_fields($user) {
 ?>
 
     <h3>Google Authentication</h3>
     <?php
-        $auth_enable = get_user_meta($user->ID, 'google_auth_enable');
-        if(is_array($auth_enable) && isset($auth_enable[0]) && $auth_enable[0]==1) {
-            $auth_enable=1;
-        } else {
-            $auth_enable=0;
-        }
-        $g = new GoogleAuthenticator();
-        $secret = get_user_meta($user->ID, 'google_auth_secret');
-        if(is_array($secret) && isset($secret[0]) && $secret[0]!="" && $auth_enable==1) {
-            $secret = $secret[0];
-        } else {
-            $secret = $g->generateSecret();
-        }
+        $auth_enable = google_authenticator_is_auth_enabled($user);
+        $secret = google_authenticator_get_secret($user);
     ?>
     <script language="javascript">
         jQuery().ready(function() {
@@ -75,7 +98,7 @@ function my_show_extra_profile_fields($user) {
             <td>&nbsp;</td>
             <td style="vertical-align: top;">
                 <?php
-                    $qr = base64_encode(file_get_contents($g->getURL($user->user_login,str_replace(["http://","https://"],"",get_site_url()),$secret,get_bloginfo())));
+                    $qr = base64_encode(file_get_contents((new GoogleAuthenticator())->getURL($user->user_login,str_replace(["http://","https://"],"",get_site_url()),$secret,get_bloginfo())));
                 ?>
                 <div id='admin_google_auth_code' style='width:200px; <?php echo(($auth_enable==1?"":"display: none;")); ?>'>
                     <span style='display:block; text-align:center; font-size:12px; font-weight: bold;'>
@@ -92,10 +115,10 @@ function my_show_extra_profile_fields($user) {
     </table>
 <?php
 };
-add_action('show_user_profile', 'my_show_extra_profile_fields');
-add_action('edit_user_profile', 'my_show_extra_profile_fields');
+add_action('show_user_profile', 'google_authenticator_plugin_show_extra_profile_fields');
+add_action('edit_user_profile', 'google_authenticator_plugin_show_extra_profile_fields');
 
-function my_save_extra_profile_fields($user_id) {
+function google_authenticator_plugin_save_extra_profile_fields($user_id) {
     if ( !current_user_can( 'edit_user', $user_id ) )
         return false;
 
@@ -104,10 +127,10 @@ function my_save_extra_profile_fields($user_id) {
         update_user_meta($user_id, 'google_auth_secret', $_POST['admin_google_auth_secret']);
     }
 };
-add_action('personal_options_update', 'my_save_extra_profile_fields');
-add_action('edit_user_profile_update', 'my_save_extra_profile_fields');
+add_action('personal_options_update', 'google_authenticator_plugin_save_extra_profile_fields');
+add_action('edit_user_profile_update', 'google_authenticator_plugin_save_extra_profile_fields');
 
-function login_form_new_fields(){
+function google_authenticator_plugin_login_form_new_fields(){
     ?>
     <div style="text-align: center; margin-top: 10px; margin-bottom: 15px;"><p>.. or use ..</p></div>
     <p>
@@ -118,9 +141,9 @@ function login_form_new_fields(){
     </p>
     <?php
 }
-add_action('login_form', 'login_form_new_fields');
+add_action('login_form', 'google_authenticator_plugin_login_form_new_fields');
 
-function authenticate_filter($user, $username, $password){
+function google_authenticator_plugin_authenticate_filter($user, $username, $password){
     $google_auth_code_field_name = $_POST['google_auth_code_field_name'];
 
     $user_login = get_user_by( 'login', $username );
@@ -128,17 +151,9 @@ function authenticate_filter($user, $username, $password){
     $user = $user_login?$user_login:$user_email;
 
     if($user) {
-        $auth_enable = get_user_meta($user->ID, 'google_auth_enable');
-        if(is_array($auth_enable) && isset($auth_enable[0]) && $auth_enable[0]==1) {
-            $auth_enable=1;
-        } else {
-            $auth_enable=0;
-        }
+        $auth_enable = google_authenticator_is_auth_enabled($user);
+        $secret = google_authenticator_get_secret($user);
         $g = new GoogleAuthenticator();
-        $secret = get_user_meta($user->ID, 'google_auth_secret');
-        if(is_array($secret) && isset($secret[0]) && $secret[0]!="" && $auth_enable==1) {
-            $secret = $secret[0];
-        }
         if($auth_enable && $g->checkCode($secret, $google_auth_code_field_name)) {
             remove_action('authenticate', 'wp_authenticate_username_password', 20);
             remove_action('authenticate', 'wp_authenticate_email_password', 20);
@@ -148,5 +163,5 @@ function authenticate_filter($user, $username, $password){
 
     return null;
 }
-add_filter( 'authenticate', 'authenticate_filter', 10, 3 );
+add_filter( 'authenticate', 'google_authenticator_plugin_authenticate_filter', 10, 3 );
 
