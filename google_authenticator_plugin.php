@@ -98,7 +98,7 @@ function google_authenticator_plugin_show_extra_profile_fields($user) {
             <td>&nbsp;</td>
             <td style="vertical-align: top;">
                 <?php
-                    $qr = base64_encode(file_get_contents((new GoogleAuthenticator())->getURL($user->user_login,str_replace(["http://","https://"],"",get_site_url()),$secret,get_bloginfo())));
+                    $qr = base64_encode(file_get_contents((new GoogleAuthenticator())->getURL($user->user_login,str_replace(["http://","https://"],"",get_site_url()),$secret,urlencode(get_bloginfo()))));
                 ?>
                 <div id='admin_google_auth_code' style='width:200px; <?php echo(($auth_enable==1?"":"display: none;")); ?>'>
                     <span style='display:block; text-align:center; font-size:12px; font-weight: bold;'>
