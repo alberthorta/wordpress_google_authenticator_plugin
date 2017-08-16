@@ -2,7 +2,7 @@
 
 ## Allows WordPress users to activate Google Authentication on their WordPress login.
 
-## How it work?
+## How it works?
 
 WordPress Google Authenticator provides a simple and lightweight plugin to add the Google Double Authentication support on the WordPress user login on certain users.
 
