@@ -37,6 +37,16 @@ function google_authenticator_is_auth_enabled($user) {
     return $auth_enable;
 }
 
+function google_authenticator_is_auth_double($user) {
+    $auth_double = get_user_meta($user->ID, 'google_auth_double');
+    if(is_array($auth_double) && isset($auth_double[0]) && $auth_double[0]==1) {
+        $auth_double=1;
+    } else {
+        $auth_double=0;
+    }
+    return $auth_double;
+}
+
 function google_authenticator_get_secret($user) {
     $g = new GoogleAuthenticator();
     $secret = get_user_meta($user->ID, 'google_auth_secret');
@@ -52,6 +62,7 @@ function google_authenticator_plugin_deactivation()
 {
     delete_metadata('user', -1, 'google_auth_enable', '', true);
     delete_metadata('user', -1, 'google_auth_secret', '', true);
+    delete_metadata('user', -1, 'google_auth_double', '', true);
 }
 register_deactivation_hook( __FILE__, 'google_authenticator_plugin_deactivation' );
 
@@ -61,16 +72,20 @@ function google_authenticator_plugin_show_extra_profile_fields($user) {
     <h3>Google Authentication</h3>
     <?php
         $auth_enable = google_authenticator_is_auth_enabled($user);
+        $auth_double = google_authenticator_is_auth_double($user);
         $secret = google_authenticator_get_secret($user);
     ?>
     <script language="javascript">
         jQuery().ready(function() {
             jQuery("#admin_google_auth_enable").change(function() {
                jQuery("#admin_google_auth_code").stop();
+                jQuery("#double_admin_check").stop();
                if(jQuery(this).is(":checked")) {
                    jQuery("#admin_google_auth_code").fadeIn();
+                   jQuery("#double_admin_check").fadeIn();
                } else {
                    jQuery("#admin_google_auth_code").fadeOut();
+                   jQuery("#double_admin_check").fadeOut();
                }
             });
         });
@@ -92,6 +107,23 @@ function google_authenticator_plugin_show_extra_profile_fields($user) {
                     Enable Google Authentication for this user.
                 </label>
                 <input type="hidden" name="admin_google_auth_secret" id="admin_google_auth_secret" value="<?php echo($secret); ?>">
+            </td>
+        </tr>
+        <tr id="double_admin_check" style='<?php echo(($auth_enable==1?"":"display: none;")); ?>'>
+            <th><label for="admin_bar_front_double">Regular Password</label></th>
+
+            <td style="vertical-align: top;">
+                <label for="admin_bar_front_double">
+                    <input
+                            name="admin_google_auth_double"
+                            id="admin_google_auth_double"
+                            value="1"
+                        <?php if($auth_double==1) echo('checked="checked"'); ?>
+                            type="checkbox"
+                            onclick=""
+                    >
+                    Password field must be also valid (Double Authentication).
+                </label>
             </td>
         </tr>
         <tr>
@@ -125,6 +157,7 @@ function google_authenticator_plugin_save_extra_profile_fields($user_id) {
     update_user_meta( $user_id, 'google_auth_enable', $_POST['admin_google_auth_enable'] );
     if($_POST['admin_google_auth_enable'] == 1) {
         update_user_meta($user_id, 'google_auth_secret', $_POST['admin_google_auth_secret']);
+        update_user_meta($user_id, 'google_auth_double', $_POST['admin_google_auth_double']);
     }
 };
 add_action('personal_options_update', 'google_authenticator_plugin_save_extra_profile_fields');
@@ -152,11 +185,25 @@ function google_authenticator_plugin_authenticate_filter($user, $username, $pass
 
     if($user) {
         $auth_enable = google_authenticator_is_auth_enabled($user);
+        $auth_double = google_authenticator_is_auth_double($user);
         $secret = google_authenticator_get_secret($user);
         $g = new GoogleAuthenticator();
-        if($auth_enable && $g->checkCode($secret, $google_auth_code_field_name)) {
+        if($auth_enable) {
             remove_action('authenticate', 'wp_authenticate_username_password', 20);
             remove_action('authenticate', 'wp_authenticate_email_password', 20);
+            if(!$g->checkCode($secret, $google_auth_code_field_name)) {
+                return null;
+            }
+            if($auth_double==1) {
+                $auth_username_password = wp_authenticate_username_password(null, $username, $password);
+                $auth_email_password = wp_authenticate_email_password(null, $username, $password);
+                if($auth_username_password!=null) {
+                    return $auth_username_password;
+                } else if($auth_email_password!=null) {
+                    return $auth_email_password;
+                }
+                return null;
+            }
             return $user;
         }
     }
