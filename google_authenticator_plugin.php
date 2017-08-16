@@ -18,7 +18,7 @@
 	Plugin Name: Google Authentication Plugin
     Plugin URI: https://github.com/alberthorta/wordpress_google_authenticator_plugin
     Description: Activate Google Authentication for admin pages on selected users.
-	Version: 20170813
+	Version: 20170816
     License:     GPL2
     License URI: https://www.gnu.org/licenses/gpl-2.0.html
 	Author: Albert Horta Llobet, Andre DeMarre
